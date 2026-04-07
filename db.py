@@ -5,6 +5,7 @@ MariaDB connection + all read/write/edit/delete operations
 Database: metatron
 """
 
+import os
 import mysql.connector
 from datetime import datetime
 
@@ -14,12 +15,13 @@ from datetime import datetime
 # ─────────────────────────────────────────────
 
 def get_connection():
-    """Returns a MariaDB connection. No password (local setup)."""
+    """Returns a MariaDB connection using environment-aware defaults."""
     return mysql.connector.connect(
-        host="localhost",
-        user="metatron",
-        password="123",
-        database="metatron"
+        host=os.getenv("METATRON_DB_HOST", "localhost"),
+        port=int(os.getenv("METATRON_DB_PORT", "3306")),
+        user=os.getenv("METATRON_DB_USER", "metatron"),
+        password=os.getenv("METATRON_DB_PASSWORD", "123"),
+        database=os.getenv("METATRON_DB_NAME", "metatron")
     )
 
 
@@ -240,109 +242,108 @@ def delete_vulnerability(vuln_id: int):
     c.execute("DELETE FROM vulnerabilities WHERE id = %s", (vuln_id,))
     conn.commit()
     conn.close()
-    print(f"[+] Vulnerability id={vuln_id} and its fixes deleted.")
-
-
-def delete_exploit(exploit_id: int):
-    """Delete a single exploit attempt."""
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("DELETE FROM exploits_attempted WHERE id = %s", (exploit_id,))
-    conn.commit()
-    conn.close()
-    print(f"[+] Exploit id={exploit_id} deleted.")
+    print(f"[+] Deleted vulnerability id={vuln_id} and linked fixes")
 
 
 def delete_fix(fix_id: int):
-    """Delete a single fix."""
+    """Delete one fix row."""
     conn = get_connection()
     c = conn.cursor()
     c.execute("DELETE FROM fixes WHERE id = %s", (fix_id,))
     conn.commit()
     conn.close()
-    print(f"[+] Fix id={fix_id} deleted.")
+    print(f"[+] Deleted fix id={fix_id}")
+
+
+def delete_exploit(exploit_id: int):
+    """Delete one exploit row."""
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("DELETE FROM exploits_attempted WHERE id = %s", (exploit_id,))
+    conn.commit()
+    conn.close()
+    print(f"[+] Deleted exploit id={exploit_id}")
 
 
 def delete_full_session(sl_no: int):
-    """
-    Wipe everything linked to a sl_no across all 5 tables.
-    Order matters — delete children before parent (FK constraints).
-    """
+    """Delete ALL data linked to a session across all tables."""
     conn = get_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM fixes             WHERE sl_no = %s", (sl_no,))
+
+    # child tables first due to FK constraints
+    c.execute("DELETE FROM fixes WHERE sl_no = %s", (sl_no,))
     c.execute("DELETE FROM exploits_attempted WHERE sl_no = %s", (sl_no,))
-    c.execute("DELETE FROM vulnerabilities   WHERE sl_no = %s", (sl_no,))
-    c.execute("DELETE FROM summary           WHERE sl_no = %s", (sl_no,))
-    c.execute("DELETE FROM history           WHERE sl_no = %s", (sl_no,))
+    c.execute("DELETE FROM vulnerabilities WHERE sl_no = %s", (sl_no,))
+    c.execute("DELETE FROM summary WHERE sl_no = %s", (sl_no,))
+    c.execute("DELETE FROM history WHERE sl_no = %s", (sl_no,))
+
     conn.commit()
     conn.close()
-    print(f"[+] Full session SL#{sl_no} deleted from all tables.")
+    print(f"[+] Deleted full session SL# {sl_no}")
 
 
 # ─────────────────────────────────────────────
-# DISPLAY HELPERS
+# PRINT HELPERS
 # ─────────────────────────────────────────────
 
 def print_history(rows):
-    print("\n" + "─"*65)
-    print(f"{'SL#':<6} {'TARGET':<28} {'DATE':<22} {'STATUS'}")
-    print("─"*65)
-    for row in rows:
-        print(f"{row[0]:<6} {row[1]:<28} {str(row[2]):<22} {row[3]}")
-    print()
+    """Pretty print history table rows."""
+    print("\n[ SCAN HISTORY ]")
+    print("-" * 78)
+    print(f"{'SL#':<6}{'TARGET':<28}{'DATE':<24}{'STATUS':<12}")
+    print("-" * 78)
+    for r in rows:
+        print(f"{r[0]:<6}{str(r[1]):<28}{str(r[2]):<24}{str(r[3]):<12}")
+    print("-" * 78)
 
 
 def print_session(data: dict):
-    h = data["history"]
-    print(f"\n{'═'*60}")
-    print(f"  SL# {h[0]} | Target: {h[1]} | {h[2]} | {h[3]}")
-    print(f"{'═'*60}")
+    """Pretty print full session data from get_session()."""
+    h = data.get("history")
+    if not h:
+        print("[!] No session data found.")
+        return
 
+    print("\n" + "=" * 80)
+    print(f"SESSION SL# {h[0]} | TARGET: {h[1]} | DATE: {h[2]} | STATUS: {h[3]}")
+    print("=" * 80)
+
+    vulns = data.get("vulns", [])
     print("\n[ VULNERABILITIES ]")
-    if data["vulns"]:
-        for v in data["vulns"]:
-            print(f"  id={v[0]} | {v[2]} | Severity: {v[3]} | Port: {v[4]} | Service: {v[5]}")
-            print(f"           {v[6]}")
+    if vulns:
+        for v in vulns:
+            print(f"\n  id={v[0]} | {v[2]} [{v[3]}] | port={v[4]} | service={v[5]}")
+            print(f"  DESC: {v[6]}")
     else:
-        print("  None recorded.")
+        print("  (none)")
 
+    fixes = data.get("fixes", [])
     print("\n[ FIXES ]")
-    if data["fixes"]:
-        for f in data["fixes"]:
-            print(f"  id={f[0]} | vuln_id={f[2]} | [{f[4]}] {f[3]}")
+    if fixes:
+        for f in fixes:
+            print(f"\n  id={f[0]} | vuln_id={f[2]} | source={f[4]}")
+            print(f"  FIX: {f[3]}")
     else:
-        print("  None recorded.")
+        print("  (none)")
 
+    exploits = data.get("exploits", [])
     print("\n[ EXPLOITS ATTEMPTED ]")
-    if data["exploits"]:
-        for e in data["exploits"]:
-            print(f"  id={e[0]} | {e[2]} | Tool: {e[3]} | Result: {e[5]}")
-            print(f"           Payload: {e[4]}")
-            print(f"           Notes:   {e[6]}")
+    if exploits:
+        for e in exploits:
+            print(f"\n  id={e[0]} | {e[2]} | tool={e[3]} | result={e[5]}")
+            print(f"  PAYLOAD: {e[4]}")
+            print(f"  NOTES  : {e[6]}")
     else:
-        print("  None recorded.")
+        print("  (none)")
 
+    s = data.get("summary")
     print("\n[ SUMMARY ]")
-    if data["summary"]:
-        s = data["summary"]
-        print(f"  Risk Level : {s[4]}")
-        print(f"  Generated  : {s[5]}")
-        print(f"\n  AI Analysis:\n  {s[3][:500]}{'...' if len(str(s[3])) > 500 else ''}")
+    if s:
+        print(f"  risk_level : {s[4]}")
+        print(f"  generated  : {s[5]}")
+        print("\n  AI ANALYSIS:\n")
+        print(s[3])
     else:
-        print("  None recorded.")
-    print()
+        print("  (none)")
 
-
-# ─────────────────────────────────────────────
-# QUICK CONNECTION TEST
-# ─────────────────────────────────────────────
-
-if __name__ == "__main__":
-    try:
-        conn = get_connection()
-        print("[+] MariaDB connection successful.")
-        print("[+] Database: metatron")
-        conn.close()
-    except Exception as e:
-        print(f"[!] Connection failed: {e}")
+    print("\n" + "=" * 80)
