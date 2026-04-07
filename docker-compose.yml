@@ -1,0 +1,39 @@
+services:
+  metatron-db:
+    image: mariadb:11.4
+    container_name: metatron-db
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: metatron
+      MARIADB_USER: metatron
+      MARIADB_PASSWORD: 123
+      MARIADB_ROOT_PASSWORD: root123
+    ports:
+      - "3306:3306"
+    volumes:
+      - metatron-db-data:/var/lib/mysql
+      - ./docker/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+
+  metatron-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: metatron-app
+    stdin_open: true
+    tty: true
+    depends_on:
+      - metatron-db
+    environment:
+      METATRON_DB_HOST: metatron-db
+      METATRON_DB_PORT: 3306
+      METATRON_DB_USER: metatron
+      METATRON_DB_PASSWORD: 123
+      METATRON_DB_NAME: metatron
+      METATRON_OLLAMA_URL: http://host.docker.internal:11434/api/generate
+      METATRON_MODEL_NAME: metatron-qwen
+    volumes:
+      - .:/app
+    command: python metatron.py
+
+volumes:
+  metatron-db-data:

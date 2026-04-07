@@ -1,5 +1,5 @@
 # METATRON
-AI-powered penetration testing assistant using local LLM on linux (Parrot OS)
+AI-powered penetration testing assistant using local LLM (now with Windows Docker support)
 # 🔱 METATRON
 ### AI-Powered Penetration Testing Assistant
 
@@ -9,7 +9,7 @@ AI-powered penetration testing assistant using local LLM on linux (Parrot OS)
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.x-blue?style=for-the-badge&logo=python"/>
-  <img src="https://img.shields.io/badge/OS-Parrot%20Linux-green?style=for-the-badge&logo=linux"/>
+  <img src="https://img.shields.io/badge/OS-Windows%20%2B%20Docker-blueviolet?style=for-the-badge&logo=docker"/>
   <img src="https://img.shields.io/badge/AI-metatron--qwen-red?style=for-the-badge"/>
   <img src="https://img.shields.io/badge/DB-MariaDB-orange?style=for-the-badge&logo=mariadb"/>
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge"/>
@@ -80,7 +80,62 @@ Metatron allows you to export scan results into clean, shareable report formats 
 
 ---
 
-## ⚙️ Installation
+
+## 🪟 Run on Windows with Docker (recommended)
+
+This project now supports running the app + MariaDB in Docker on **Windows (Docker Desktop + WSL2 backend)**.
+
+### Prerequisites
+
+- Docker Desktop (Windows)
+- Ollama installed on Windows and running locally
+- `metatron-qwen` model created in Ollama
+
+### 1) Start Ollama on Windows
+
+```powershell
+ollama serve
+ollama pull huihui_ai/qwen3.5-abliterated:9b
+ollama create metatron-qwen -f Modelfile
+```
+
+### 2) Build and start the containers
+
+From this repo folder:
+
+```powershell
+docker compose up --build
+```
+
+This starts:
+- `metatron-db` (MariaDB with schema auto-created from `docker/schema.sql`)
+- `metatron-app` (the CLI app with recon tools preinstalled; `nikto` is included when available in apt repos)
+
+### 3) Use the CLI
+
+If you started detached, attach any time with:
+
+```powershell
+docker compose exec metatron-app python metatron.py
+```
+
+### 4) Stop everything
+
+```powershell
+docker compose down
+```
+
+To also delete DB data:
+
+```powershell
+docker compose down -v
+```
+
+> ℹ️ The container connects to Ollama using `http://host.docker.internal:11434`.
+
+---
+
+## ⚙️ Linux/Parrot Manual Installation
 
 ### 1. Clone the repository
 
