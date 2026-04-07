@@ -11,8 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     whatweb \
     curl \
     dnsutils \
-    nikto \
     ca-certificates \
+    && if apt-cache show nikto >/dev/null 2>&1; then apt-get install -y --no-install-recommends nikto; else echo "[!] nikto package not available in this base image; continuing without it"; fi \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

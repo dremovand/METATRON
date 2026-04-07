@@ -109,7 +109,7 @@ docker compose up --build
 
 This starts:
 - `metatron-db` (MariaDB with schema auto-created from `docker/schema.sql`)
-- `metatron-app` (the CLI app with recon tools preinstalled)
+- `metatron-app` (the CLI app with recon tools preinstalled; `nikto` is included when available in apt repos)
 
 ### 3) Use the CLI
 
